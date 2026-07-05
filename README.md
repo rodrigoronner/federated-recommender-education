@@ -18,7 +18,7 @@ Source code for the paper submitted to the **Journal of Educational Data Mining 
 │   └── .gitkeep
 ├── recommender_net.py             # RecommenderNet architecture (Table 3)
 ├── 01_data_preparation.py         # ASSISTments preprocessing pipeline (Section 4.2)
-├── 02_centralized_baseline.py     # XGBoost centralised benchmark (Section 4.3.1)
+├── 02_centralized_baseline.py     # XGBoost centralized benchmark (Section 4.3.1)
 ├── 03_federated_training.py       # FL simulation: FedAvg + FedProx (Section 4.3.2)
 ├── 04_visualization.py            # Publication figures (Figures 4, 5, 6)
 ├── requirements.txt
@@ -43,7 +43,7 @@ Download and place `skill_builder_data_corrected_collapsed.csv` inside the `data
 pip install -r requirements.txt
 ```
 
-Tested with Python 3.10. GPU (CUDA) is supported but not required for training.
+Tested with Python 3.10. GPU (CUDA) support is optional for training.
 
 ---
 
@@ -55,7 +55,7 @@ Run the scripts in order:
 # 1. Preprocess the ASSISTments dataset
 python 01_data_preparation.py
 
-# 2. Train and evaluate the centralised XGBoost baseline (Table 4)
+# 2. Train and evaluate the centralized XGBoost baseline (Table 4)
 python 02_centralized_baseline.py
 
 # 3. Run all federated experiments (Table 6)
@@ -112,7 +112,7 @@ python 04_visualization.py
 | **FedProx μ=0.5** | **0.7628** | **88** | 0.7238 | 0.0205 |
 | FedProx μ=1.0 | 0.7555 | 80 | 0.7280 | 0.0152 |
 
-Centralised XGBoost baseline: **F1 = 0.8285** (round 24).
+Centralized XGBoost baseline: **F1 = 0.8285** (round 24).
 
 ---
 
@@ -127,8 +127,5 @@ This code is released under the **Apache 2.0 License**.
 If you use this code, please cite:
 
 ```
-Tertulino, R., & Almeida, R. (2025). Privacy-Preserving Personalization in Education:
-A Federated Recommender System for Student Performance Prediction.
-Journal of Educational Data Mining.
+Tertulino, R., & Almeida, R. (2025). Privacy-preserving personalization in education: A federated recommender system for student performance prediction. arXiv preprint arXiv:2509.10516.
 ```
-# federated-recommender-education
