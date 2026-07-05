@@ -1,0 +1,13 @@
+# Privacy-Preserving Personalization in Education
+# Federated Recommender System for Student Performance Prediction
+# Tested with Python 3.10+
+
+torch==2.2.0
+flwr==1.7.0
+xgboost==2.0.3
+scikit-learn==1.4.0
+pandas==2.2.0
+numpy==1.26.4
+matplotlib==3.8.2
+seaborn==0.13.2
+tqdm==4.66.2
