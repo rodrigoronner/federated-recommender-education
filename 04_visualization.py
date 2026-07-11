@@ -1,5 +1,5 @@
 """
-Step 4 — Visualisation (Figures 4, 5, and 6 of the paper)
+Step 4 — Visualization (Figures 4, 5, and 6 of the paper)
 ==========================================================
 Reads the per-round metric CSV files produced by steps 2 and 3 and
 generates publication-ready figures:
@@ -44,7 +44,7 @@ COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
 
 
 # ---------------------------------------------------------------------------
-# Figure 4 — Centralised XGBoost metric evolution
+# Figure 4 — Centralized XGBoost metric evolution
 # ---------------------------------------------------------------------------
 def plot_centralized():
     path = os.path.join(OUT_DIR, "centralized_metrics_per_round.csv")
