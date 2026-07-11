@@ -143,15 +143,15 @@ def plot_comparison():
     best_prox = fedprox.loc[fedprox["f1_score"].idxmax()]
     best_avg  = fedavg.loc[fedavg["f1_score"].idxmax()]
 
-    ax.annotate(f"FedProx peak: {best_prox.f1_score:.4f}\n(round {int(best_prox.round)})",
-                xy=(best_prox.round, best_prox.f1_score),
-                xytext=(best_prox.round + 3, best_prox.f1_score - 0.04),
+    ax.annotate(f"FedProx peak: {best_prox.f1_score:.4f}\n(round {int(best_prox['round'])})",
+                xy=(best_prox['round'], best_prox.f1_score),
+                xytext=(best_prox['round'] + 3, best_prox.f1_score - 0.04),
                 arrowprops=dict(arrowstyle="->", color="steelblue"),
                 color="steelblue", fontsize=9)
 
-    ax.annotate(f"FedAvg peak: {best_avg.f1_score:.4f}\n(round {int(best_avg.round)})",
-                xy=(best_avg.round, best_avg.f1_score),
-                xytext=(best_avg.round + 3, best_avg.f1_score + 0.02),
+    ax.annotate(f"FedAvg peak: {best_avg.f1_score:.4f}\n(round {int(best_avg['round'])})",
+                xy=(best_avg['round'], best_avg.f1_score),
+                xytext=(best_avg['round'] + 3, best_avg.f1_score + 0.02),
                 arrowprops=dict(arrowstyle="->", color="darkorange"),
                 color="darkorange", fontsize=9)
 

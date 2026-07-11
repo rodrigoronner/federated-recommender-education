@@ -1,9 +1,17 @@
 """
 Step 3 — Federated Learning Simulation (Sections 4.3.2, 5.2, and Table 6)
 ==========================================================================
-Simulates federated training using the Flower (flwr) framework.
-Each of the 1,365 students is treated as an independent FL client
-holding private, locally-stored data.
+Simulates federated training using the Flower (flwr) framework (Table 2:
+Framework = Flower), which orchestrates client selection, local training,
+and aggregation via its virtual-client simulation engine.
+
+Each of the up to 1,365 students is registered as one independent FL client
+(flwr.client.NumPyClient), holding private, locally-stored data — a strict
+one-client-per-student mapping, with no student silently dropped.
+
+The FedProx server-side strategy (flwr.server.strategy.FedProx) is used for
+all four configurations; proximal_mu=0.0 recovers standard FedAvg exactly,
+a correspondence the paper verifies explicitly in its ablation (Table 6).
 
 Runs four configurations:
     - FedAvg        (mu = 0)
@@ -11,8 +19,8 @@ Runs four configurations:
     - FedProx mu=0.5  ← optimal, reported as main result
     - FedProx mu=1.0
 
-For each configuration the script logs per-round metrics on a global
-held-out test set (20% of each client's local data), then saves:
+For each configuration the script logs per-round metrics aggregated by the
+Flower strategy across the evaluation clients selected each round, then saves:
     outputs/fl_metrics_<strategy>.csv
     outputs/fl_summary.json
 
@@ -26,11 +34,18 @@ Run the visualisation script afterwards:
 """
 
 import os, json, argparse, warnings
+from typing import Dict, List, Tuple
+
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.model_selection import train_test_split
 import torch
+import torch.nn as nn
+from sklearn.model_selection import train_test_split
+
+import flwr as fl
+from flwr.client import NumPyClient, Client
+from flwr.common import Scalar, NDArrays, ndarrays_to_parameters
+from flwr.server.strategy import FedProx
 
 from recommender_net import RecommenderNet, StudentSkillDataset, train_local, evaluate_local
 
@@ -58,7 +73,7 @@ np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 
 # ---------------------------------------------------------------------------
-# Load data and partition by student (one client = one student)
+# Load data and partition by student (one client = one student — Table 1)
 # ---------------------------------------------------------------------------
 print(f"Loading data from {DATA_PATH} …")
 df = pd.read_csv(DATA_PATH)
@@ -69,51 +84,113 @@ print(f"  Students (clients): {NUM_USERS}  |  Skills (items): {NUM_SKILLS}")
 print(f"  Total pairs: {len(df):,}")
 print(f"  Device: {DEVICE}")
 
-# Split each client's data into local train (80%) and local val (20%)
+# Split each client's data into local train (80%) and local val (20%).
+# Every student in the processed cohort becomes exactly one FL client — no
+# student is dropped, matching the paper's "1,365 clients, one per student".
 client_train_datasets = {}
 client_val_datasets   = {}
 
 for uid, group in df.groupby("user_id_new"):
-    if len(group) < 5:
-        continue  # skip clients with too few samples
-    train_df, val_df = train_test_split(
-        group, test_size=VAL_FRACTION, random_state=RANDOM_SEED, shuffle=True
-    )
+    if len(group) >= 2:
+        train_df, val_df = train_test_split(
+            group, test_size=VAL_FRACTION, random_state=RANDOM_SEED, shuffle=True
+        )
+    else:
+        # Too few rows to carve out a val split; train on all, empty val.
+        train_df, val_df = group, group.iloc[0:0]
     client_train_datasets[uid] = StudentSkillDataset(train_df.reset_index(drop=True))
     client_val_datasets[uid]   = StudentSkillDataset(val_df.reset_index(drop=True))
 
-CLIENT_IDS = list(client_train_datasets.keys())
+CLIENT_IDS = sorted(client_train_datasets.keys())
 N_CLIENTS  = len(CLIENT_IDS)
-print(f"  Eligible clients (≥5 samples): {N_CLIENTS}")
+assert N_CLIENTS == NUM_USERS, (
+    f"Expected one FL client per student ({NUM_USERS}), got {N_CLIENTS}."
+)
+print(f"  FL clients (one per student): {N_CLIENTS}")
 
-# Compute number of clients per round
-n_fit  = max(MIN_FIT_CLIENTS, int(FRACTION_FIT  * N_CLIENTS))
-n_eval = max(1,               int(FRACTION_EVAL * N_CLIENTS))
-print(f"  Clients per round — train: {n_fit}  |  eval: {n_eval}")
+n_fit = max(MIN_FIT_CLIENTS, int(FRACTION_FIT * N_CLIENTS))
+print(f"  Clients per round — train: ~{n_fit}  |  eval: ~{int(FRACTION_EVAL * N_CLIENTS)}")
 
 
 # ---------------------------------------------------------------------------
-# Federated Averaging (server-side aggregation, Eq. 3)
+# Flower client (Section 4.3.2 — local training / evaluation per client)
 # ---------------------------------------------------------------------------
-def federated_average(local_updates):
-    """
-    Weighted average of local model parameters (FedAvg, Eq. 3).
-    Each client's weight is proportional to its number of training samples.
+class StudentClient(NumPyClient):
+    """One Flower client per student, wrapping RecommenderNet local train/eval."""
 
-    Parameters
-    ----------
-    local_updates : list of (params, n_samples) tuples
+    def __init__(self, uid: int):
+        self.uid   = uid
+        self.model = RecommenderNet(NUM_USERS, NUM_SKILLS)
 
-    Returns
-    -------
-    List of numpy arrays — new global parameters.
-    """
-    total_samples = sum(n for _, n in local_updates)
-    avg_params    = [
-        sum(n / total_samples * p[i] for p, n in local_updates)
-        for i in range(len(local_updates[0][0]))
-    ]
-    return avg_params
+    def get_parameters(self, config: Dict[str, Scalar]) -> NDArrays:
+        return self.model.get_parameters_flat()
+
+    def fit(self, parameters: NDArrays, config: Dict[str, Scalar]):
+        self.model.set_parameters_flat(parameters)
+
+        # proximal_mu is injected automatically into `config` by the
+        # FedProx strategy (0.0 for the FedAvg run — see Eq. 4 / Eq. 3).
+        mu = float(config.get("proximal_mu", 0.0))
+
+        updated_params, n_samples = train_local(
+            model         = self.model,
+            dataset       = client_train_datasets[self.uid],
+            epochs        = int(config.get("local_epochs", LOCAL_EPOCHS)),
+            batch_size    = int(config.get("batch_size", LOCAL_BATCH_SIZE)),
+            lr            = float(config.get("lr", LEARNING_RATE)),
+            mu            = mu,
+            global_params = parameters if mu > 0 else None,
+            device        = DEVICE,
+        )
+        return updated_params, n_samples, {}
+
+    def evaluate(self, parameters: NDArrays, config: Dict[str, Scalar]):
+        self.model.set_parameters_flat(parameters)
+        val_ds = client_val_datasets[self.uid]
+
+        if len(val_ds) == 0:
+            return 0.0, 0, {"accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1_score": 0.0}
+
+        metrics = evaluate_local(self.model, val_ds, device=DEVICE)
+
+        # BCE loss on the local validation split (required scalar return by Flower).
+        criterion = nn.BCELoss()
+        self.model.eval()
+        with torch.no_grad():
+            u = val_ds.user_ids.to(DEVICE)
+            s = val_ds.skill_ids.to(DEVICE)
+            f = val_ds.features.to(DEVICE)
+            y = val_ds.labels.to(DEVICE)
+            preds = self.model(u, s, f)
+            loss  = criterion(preds, y).item()
+
+        return loss, len(val_ds), metrics
+
+
+def client_fn(cid: str) -> Client:
+    """Flower calls this once per selected client per round (Section 4.3.2)."""
+    return StudentClient(uid=int(cid)).to_client()
+
+
+# ---------------------------------------------------------------------------
+# Server-side metric aggregation (weighted by client sample count, Eq. 3)
+# ---------------------------------------------------------------------------
+def weighted_average(metrics: List[Tuple[int, Dict[str, Scalar]]]) -> Dict[str, Scalar]:
+    total = sum(n for n, _ in metrics if n > 0)
+    if total == 0:
+        return {"accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1_score": 0.0}
+    return {
+        key: sum(n * m[key] for n, m in metrics if n > 0) / total
+        for key in ["accuracy", "precision", "recall", "f1_score"]
+    }
+
+
+def fit_config(server_round: int) -> Dict[str, Scalar]:
+    return {
+        "local_epochs": LOCAL_EPOCHS,
+        "batch_size"  : LOCAL_BATCH_SIZE,
+        "lr"          : LEARNING_RATE,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -121,81 +198,61 @@ def federated_average(local_updates):
 # ---------------------------------------------------------------------------
 def run_simulation(mu: float = 0.0, label: str = "FedAvg") -> pd.DataFrame:
     """
-    Simulate N_ROUNDS of federated learning for a given proximal term mu.
-
-    mu = 0  → FedAvg (standard, no proximal regularisation)
-    mu > 0  → FedProx (Eq. 4)
+    Run N_ROUNDS of Flower-orchestrated federated learning for a given
+    FedProx proximal term mu (mu = 0 recovers FedAvg — Table 6 ablation).
 
     Returns a DataFrame with per-round evaluation metrics.
     """
     print(f"\n{'='*60}")
-    print(f"  Strategy: {label}  (mu={mu})")
+    print(f"  Strategy: {label}  (mu={mu})  —  Flower simulation")
     print(f"{'='*60}")
 
-    rng = np.random.default_rng(RANDOM_SEED)
+    torch.manual_seed(RANDOM_SEED)
+    initial_parameters = ndarrays_to_parameters(
+        RecommenderNet(NUM_USERS, NUM_SKILLS).get_parameters_flat()
+    )
 
-    # Initialise global model
-    global_model = RecommenderNet(NUM_USERS, NUM_SKILLS)
-    global_params = global_model.get_parameters_flat()
+    strategy = FedProx(
+        fraction_fit                  = FRACTION_FIT,
+        fraction_evaluate             = FRACTION_EVAL,
+        min_fit_clients               = MIN_FIT_CLIENTS,
+        min_evaluate_clients          = 2,
+        min_available_clients         = N_CLIENTS,
+        on_fit_config_fn              = fit_config,
+        evaluate_metrics_aggregation_fn = weighted_average,
+        initial_parameters            = initial_parameters,
+        proximal_mu                   = mu,
+    )
 
-    records = []
+    history = fl.simulation.start_simulation(
+        client_fn        = client_fn,
+        num_clients      = N_CLIENTS,
+        config            = fl.server.ServerConfig(num_rounds=N_ROUNDS),
+        strategy          = strategy,
+        client_resources  = {"num_cpus": 1},
+        ray_init_args     = {"include_dashboard": False, "ignore_reinit_error": True},
+    )
 
-    for rnd in range(1, N_ROUNDS + 1):
-        # ── 1. Select client subsets ──────────────────────────────────────
-        fit_clients  = rng.choice(CLIENT_IDS, size=min(n_fit,  N_CLIENTS), replace=False).tolist()
-        eval_clients = rng.choice(CLIENT_IDS, size=min(n_eval, N_CLIENTS), replace=False).tolist()
-
-        # ── 2. Local training on each fit client ──────────────────────────
-        local_updates = []
-        for uid in fit_clients:
-            client_model = RecommenderNet(NUM_USERS, NUM_SKILLS)
-            client_model.set_parameters_flat(global_params)
-
-            updated_params, n_samples = train_local(
-                model         = client_model,
-                dataset       = client_train_datasets[uid],
-                epochs        = LOCAL_EPOCHS,
-                batch_size    = LOCAL_BATCH_SIZE,
-                lr            = LEARNING_RATE,
-                mu            = mu,
-                global_params = global_params if mu > 0 else None,
-                device        = DEVICE,
-            )
-            local_updates.append((updated_params, n_samples))
-
-        # ── 3. Aggregate (FedAvg, Eq. 3) ─────────────────────────────────
-        global_params = federated_average(local_updates)
-        global_model.set_parameters_flat(global_params)
-
-        # ── 4. Evaluate on eval clients (validation split) ────────────────
-        all_preds, all_labels = [], []
-        for uid in eval_clients:
-            eval_model = RecommenderNet(NUM_USERS, NUM_SKILLS)
-            eval_model.set_parameters_flat(global_params)
-            metrics = evaluate_local(eval_model, client_val_datasets[uid], device=DEVICE)
-            # Accumulate per-client results (simple average across clients)
-            all_preds.append(metrics["f1_score"])  # use F1 as primary signal
-
-        # Aggregate evaluation metrics
-        eval_model_agg = RecommenderNet(NUM_USERS, NUM_SKILLS)
-        eval_model_agg.set_parameters_flat(global_params)
-        # Evaluate on all eval clients concatenated
-        import torch
-        from torch.utils.data import ConcatDataset
-        combined_val = ConcatDataset([client_val_datasets[uid] for uid in eval_clients])
-        agg_metrics  = evaluate_local(eval_model_agg, combined_val, device=DEVICE)
-
-        rec = {"round": rnd, **agg_metrics}
-        records.append(rec)
-
-        if rnd % 10 == 0 or rnd == 1:
-            print(f"  Round {rnd:3d}/{N_ROUNDS}  "
-                  f"F1={agg_metrics['f1_score']:.4f}  "
-                  f"Acc={agg_metrics['accuracy']:.4f}  "
-                  f"Prec={agg_metrics['precision']:.4f}  "
-                  f"Rec={agg_metrics['recall']:.4f}")
-
+    # ── Extract per-round metrics from Flower's History object ─────────────
+    dist = history.metrics_distributed
+    rounds = [r for r, _ in dist.get("f1_score", [])]
+    records = [
+        {
+            "round"    : rnd,
+            "accuracy" : dict(dist.get("accuracy",  []))[rnd],
+            "precision": dict(dist.get("precision", []))[rnd],
+            "recall"   : dict(dist.get("recall",    []))[rnd],
+            "f1_score" : dict(dist.get("f1_score",  []))[rnd],
+        }
+        for rnd in rounds
+    ]
     metrics_df = pd.DataFrame(records)
+
+    for rnd in [1] + [r for r in rounds if r % 10 == 0]:
+        row = metrics_df.loc[metrics_df["round"] == rnd].iloc[0]
+        print(f"  Round {rnd:3d}/{N_ROUNDS}  "
+              f"F1={row.f1_score:.4f}  Acc={row.accuracy:.4f}  "
+              f"Prec={row.precision:.4f}  Rec={row.recall:.4f}")
 
     # ── Summary statistics ────────────────────────────────────────────────
     best_idx  = metrics_df["f1_score"].idxmax()
@@ -204,11 +261,10 @@ def run_simulation(mu: float = 0.0, label: str = "FedAvg") -> pd.DataFrame:
     std_f1    = metrics_df["f1_score"].std()
 
     print(f"\n  ── Results for {label} ──")
-    print(f"  Best F1   : {best_row.f1_score:.4f} (round {int(best_row.round)})")
+    print(f"  Best F1   : {best_row.f1_score:.4f} (round {int(best_row['round'])})")
     print(f"  Mean F1   : {mean_f1:.4f}")
     print(f"  Std Dev   : {std_f1:.4f}")
 
-    # Save per-round metrics
     csv_path = os.path.join(OUT_DIR, f"fl_metrics_{label.replace(' ', '_')}.csv")
     metrics_df.to_csv(csv_path, index=False)
 
@@ -216,7 +272,7 @@ def run_simulation(mu: float = 0.0, label: str = "FedAvg") -> pd.DataFrame:
         "strategy"  : label,
         "mu"        : mu,
         "best_f1"   : round(float(best_row.f1_score), 4),
-        "best_round": int(best_row.round),
+        "best_round": int(best_row["round"]),
         "mean_f1"   : round(float(mean_f1), 4),
         "std_dev"   : round(float(std_f1),  4),
     }

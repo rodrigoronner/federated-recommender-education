@@ -79,7 +79,7 @@ metrics_df = pd.DataFrame(records)
 best_idx = metrics_df["f1_score"].idxmax()
 best     = metrics_df.iloc[best_idx]
 print(f"\n{'='*50}")
-print(f"PEAK CENTRALIZED PERFORMANCE (round {int(best.round)})")
+print(f"PEAK CENTRALIZED PERFORMANCE (round {int(best['round'])})")
 print(f"{'='*50}")
 print(f"  F1-Score  : {best.f1_score:.4f}  ({best.f1_score*100:.2f}%)")
 print(f"  Accuracy  : {best.accuracy:.4f}  ({best.accuracy*100:.2f}%)")
@@ -89,7 +89,7 @@ print(f"{'='*50}")
 
 # Save peak metrics
 peak_metrics = {
-    "best_round": int(best.round),
+    "best_round": int(best["round"]),
     "f1_score"  : round(float(best.f1_score),  4),
     "accuracy"  : round(float(best.accuracy),  4),
     "precision" : round(float(best.precision), 4),
