@@ -19,7 +19,7 @@ Runs four configurations:
     - FedProx mu=0.5  ← optimal, reported as main result
     - FedProx mu=1.0
 
-For each configuration the script logs per-round metrics aggregated by the
+For each configuration, the script logs per-round metrics aggregated by the
 Flower strategy across the evaluation clients selected each round, then saves:
     outputs/fl_metrics_<strategy>.csv
     outputs/fl_summary.json
@@ -29,7 +29,7 @@ Usage:
     python 03_federated_training.py --mu 0.5        # single run
     python 03_federated_training.py --all            # all four configs
 
-Run the visualisation script afterwards:
+Run the visualization script afterwards:
     python 04_visualization.py
 """
 
