@@ -1,5 +1,5 @@
 """
-Step 2 — Centralised XGBoost Baseline (Section 4.3.1 and Section 5.1)
+Step 2 — Centralized XGBoost Baseline (Section 4.3.1 and Section 5.1)
 ======================================================================
 Trains an XGBoost classifier on the fully aggregated processed dataset to
 establish the upper-bound performance benchmark reported in Table 4 of the paper.
