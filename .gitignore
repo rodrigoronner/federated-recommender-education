@@ -10,3 +10,4 @@ outputs/*.png
 outputs/*.log
 !data/.gitkeep
 !outputs/.gitkeep
+!data/interactions_real_rich_scaled_processed.csv

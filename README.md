@@ -12,7 +12,8 @@ Source code for the paper submitted to the **Journal of Educational Data Mining 
 
 ```
 .
-├── data/                          # Raw and processed datasets (not included)
+├── data/
+│   ├── interactions_real_rich_scaled_processed.csv  # pre-processed cohort (see Dataset below)
 │   └── .gitkeep
 ├── outputs/                       # Generated metrics, models, and figures
 │   └── .gitkeep
@@ -33,7 +34,13 @@ This project uses the **ASSISTments Skill Builder Dataset**, publicly available 
 
 > https://doi.org/10.34740/kaggle/dsv/13081046
 
-Download and place `skill_builder_data_corrected_collapsed.csv` inside the `data/` folder before running any script.
+There are two ways to get data into `data/`, depending on whether you want to reproduce the preprocessing itself:
+
+1. **From raw ASSISTments logs (full pipeline).** Download `skill_builder_data_corrected_collapsed.csv` from the link above, place it in `data/`, and run `01_data_preparation.py` — this reproduces the filtering, feature engineering, and scaling described in Section 4.2, and writes `data/processed_assistments.csv`.
+2. **From the already-processed cohort (shortcut).** `data/interactions_real_rich_scaled_processed.csv`, included in this repo, is the exact post-processing output (1,365 students × 107 skills after filtering, features scaled to [0, 1]) — the same file backing the [`student-performance-for-recommender-systems`](https://www.kaggle.com/datasets/rodrigotertulino/student-performance-for-recommender-systems) Kaggle dataset and the [reproducibility notebook](https://www.kaggle.com/code/rodrigotertulino/federated-recommender-reproducibility). It has `target_correct_rate` but not yet the binarized `target` column `02_centralized_baseline.py`/`03_federated_training.py` expect — derive it with:
+   ```python
+   df['target'] = (df['target_correct_rate'] >= 0.70).astype(int)
+   ```
 
 ---
 
