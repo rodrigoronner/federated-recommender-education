@@ -43,7 +43,9 @@ Download and place `skill_builder_data_corrected_collapsed.csv` inside the `data
 pip install -r requirements.txt
 ```
 
-Tested with Python 3.10. GPU (CUDA) support is optional for training.
+Tested with Python 3.10/3.11. GPU (CUDA) support is optional for training.
+
+> **Note:** `requirements.txt` pins `flwr==1.7.0` and `ray==2.6.3` for federated simulation. `ray==2.6.3` has no published wheel for Python 3.12 — if you're on 3.12 (e.g. Kaggle's default image), install unpinned `flwr`/`ray` instead (`pip install flwr ray`); `flwr.simulation.start_simulation` remains available in newer releases. See the [reproducibility notebook](https://www.kaggle.com/code/rodrigotertulino/federated-recommender-reproducibility) for a working Python 3.12 setup.
 
 ---
 
@@ -116,6 +118,29 @@ Centralized XGBoost baseline: **F1 = 0.8285** (round 24).
 
 ---
 
+## Independent Reproducibility Check
+
+This pipeline was independently re-run end-to-end (unmodified code, `01`→`04`) against the [`student-performance-for-recommender-systems`](https://www.kaggle.com/datasets/rodrigotertulino/student-performance-for-recommender-systems) dataset — 100 communication rounds × 4 strategies, ~10h15min on a 10-core machine. A self-contained notebook with the live pipeline and the full results below is published on Kaggle:
+
+**→ [rodrigotertulino/federated-recommender-reproducibility](https://www.kaggle.com/code/rodrigotertulino/federated-recommender-reproducibility)**
+
+**Centralized baseline** — reproduced within 0.1–0.3pp of Table 4 on every metric (F1 0.8274 vs. 0.8285, round 20 vs. 24).
+
+**Federated results** — Table 6 comparison:
+
+| Strategy | Best F1 (paper) | Best F1 (repro) | Mean F1 (paper) | Mean F1 (repro) | Std Dev (paper) | Std Dev (repro) |
+|---|---|---|---|---|---|---|
+| FedAvg | 0.7584 | 0.7710 | 0.7249 | 0.7279 | 0.0249 | 0.0150 |
+| FedProx μ=0.1 | 0.7526 | 0.7638 | 0.7226 | 0.7275 | 0.0242 | 0.0161 |
+| **FedProx μ=0.5** | **0.7628** | **0.7737** | 0.7238 | 0.7291 | 0.0205 | 0.0162 |
+| FedProx μ=1.0 | 0.7555 | 0.7581 | 0.7280 | 0.7280 | **0.0152** | **0.0129** |
+
+The paper's central claims replicate — FedProx μ=0.5 gives the best peak F1, and μ=1.0 gives the most stable training — while absolute F1 values ran ~1–1.5pp higher and the ranking of *least*-stable strategy did not reproduce (FedAvg was among the most stable here, not the least). This is consistent with run-to-run variance inherent to Flower/Ray's client-sampling and actor-scheduling order, which a fixed `torch.manual_seed` does not fully pin down across processes.
+
+Two environment gaps surfaced during reproduction and are reflected in this repo: `ray` was missing from `requirements.txt` (added), and the pinned `flwr`/`ray` versions don't install on Python 3.12 (documented above).
+
+---
+
 ## License
 
 This code is released under the **Apache 2.0 License**.
@@ -124,8 +149,9 @@ This code is released under the **Apache 2.0 License**.
 
 ## Citation
 
-If you use this code, please cite:
+If you use this code, please cite the arXiv version of the paper:
 
 ```
-Tertulino, R., & Almeida, R. (2025). Privacy-preserving personalization in education: A federated recommender system for student performance prediction. arXiv preprint arXiv:2509.10516.
+Tertulino, R., & Almeida, R. (2025). Privacy-preserving personalization in education: A federated recommender
+system for student performance prediction. arXiv:2509.10516v3 [cs.LG]. https://doi.org/10.48550/arXiv.2509.10516
 ```

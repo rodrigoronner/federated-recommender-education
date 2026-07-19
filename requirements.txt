@@ -4,6 +4,7 @@
 
 torch==2.2.0
 flwr==1.7.0
+ray==2.6.3
 xgboost==2.0.3
 scikit-learn==1.4.0
 pandas==2.2.0
