@@ -129,7 +129,8 @@ Centralized XGBoost baseline: **F1 = 0.8285** (round 24).
 
 This pipeline was independently re-run end-to-end (unmodified code, `01`→`04`) against the [`student-performance-for-recommender-systems`](https://www.kaggle.com/datasets/rodrigotertulino/student-performance-for-recommender-systems) dataset — 100 communication rounds × 4 strategies, ~10h15min on a 10-core machine. A self-contained notebook with the live pipeline and the full results below is published on Kaggle:
 
-**→ [rodrigotertulino/federated-recommender-reproducibility](https://www.kaggle.com/code/rodrigotertulino/federated-recommender-reproducibility)**
+**→ [rodrigotertulino/federated-recommender-reproducibility](https://www.kaggle.com/code/rodrigotertulino/federated-recommender-reproducibility)** (Kaggle notebook)
+**→ [reports/reproducibility_report.html](reports/reproducibility_report.html)** ([rendered view](https://htmlpreview.github.io/?https://github.com/rodrigoronner/federated-recommender-education/blob/main/reports/reproducibility_report.html)) — visual summary of the comparison below
 
 **Centralized baseline** — reproduced within 0.1–0.3pp of Table 4 on every metric (F1 0.8274 vs. 0.8285, round 20 vs. 24).
 
