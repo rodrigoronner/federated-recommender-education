@@ -1,7 +1,7 @@
 # Privacy-Preserving Personalization in Education
 ## A Federated Recommender System for Student Performance Prediction
 
-Source code for the paper submitted to the **Journal of Educational Data Mining (JEDM)**.
+Source code for the paper submitted to **Expert Systems with Applications (ESA)**.
 
 **Authors:** Rodrigo Tertulino, Ricardo Almeida  
 **Affiliation:** Federal Institute of Education, Science, and Technology of Rio Grande do Norte (IFRN) — LaPEA Lab  

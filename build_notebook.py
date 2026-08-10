@@ -40,7 +40,7 @@ cells.append(md(
 "",
 "This notebook independently verifies that the source code in",
 "[rodrigotertulino/federated-recommender-education](https://github.com/rodrigoronner/federated-recommender-education)",
-"faithfully implements the methodology described in the JEDM submission",
+"faithfully implements the methodology described in the Expert Systems with Applications (ESA) submission",
 "*\"Privacy-Preserving Personalization in Education: A Federated Recommender System for Student Performance Prediction\"*",
 "(Tertulino & Almeida, arXiv:2509.10516), and reports **actual results obtained by running the unmodified pipeline end-to-end**",
 "against this dataset (`student-performance-for-recommender-systems`).",
@@ -389,7 +389,7 @@ cells.append(md(
 cells.append(md(
 "## 5. Conclusion",
 "",
-"This notebook independently verifies that the code in [rodrigoronner/federated-recommender-education](https://github.com/rodrigoronner/federated-recommender-education) implements the methodology described in the JEDM submission faithfully. The centralized XGBoost baseline reproduces the paper's numbers almost exactly (within ~0.1pp). The federated experiments reproduce the paper's central qualitative claims — FedProx (mu=0.5) gives the best peak F1-Score, and FedProx (mu=1.0) gives the most stable training — while showing that exact per-round numbers (and which strategy is *least* stable) carry meaningful run-to-run variance inherent to federated simulation with Flower/Ray, worth disclosing for anyone attempting to reproduce Table 6 exactly.",
+"This notebook independently verifies that the code in [rodrigoronner/federated-recommender-education](https://github.com/rodrigoronner/federated-recommender-education) implements the methodology described in the Expert Systems with Applications (ESA) submission faithfully. The centralized XGBoost baseline reproduces the paper's numbers almost exactly (within ~0.1pp). The federated experiments reproduce the paper's central qualitative claims — FedProx (mu=0.5) gives the best peak F1-Score, and FedProx (mu=1.0) gives the most stable training — while showing that exact per-round numbers (and which strategy is *least* stable) carry meaningful run-to-run variance inherent to federated simulation with Flower/Ray, worth disclosing for anyone attempting to reproduce Table 6 exactly.",
 "",
 "**Citation:**",
 "```",
